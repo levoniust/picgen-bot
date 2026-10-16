@@ -4,6 +4,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY picgen ./picgen
+# Readable by whatever user compose runs it as (the build context may have restrictive permissions).
+RUN chmod -R a+rX /app
 # Run as any non-root user; set it in compose (user: "UID:GID") to own the data folder.
 USER 1000:1000
 CMD ["python", "-m", "picgen"]
