@@ -111,6 +111,7 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `vary_grid` / `vary_subtle` / `vary_strong` | 0.3 / 0.15 / 0.45 | how different variations are (0 = same, 1 = new picture) |
 | `max_upscale_side` | 3840 | size of "4K" |
 | `llm.enabled`, `llm.url`, `llm.model`, `llm.api_key` | off | the prompt helper (OpenAI-compatible `/v1/chat/completions` URL) |
+| `llm.max_tokens` | 4000 | answer length limit for LLM calls (reasoning models need room to think; raise it if the log says an answer was cut off) |
 | `llm.extra_body` | `{}` | extra JSON fields for the LLM request, e.g. `{"chat_template_kwargs": {"reasoning_effort": "low"}}` for llama.cpp reasoning models |
 | `llm.user_header` | "" | optional HTTP header that carries "Discord: <name>" (e.g. for per-user logging in a proxy) |
 | `llm.rewrite_edits` | true | light spelling/clarity touch-up of edit instructions |

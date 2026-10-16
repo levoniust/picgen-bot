@@ -51,6 +51,14 @@ def extract_suggestions(content):
                 continue
     if isinstance(data, dict):
         data = data.get("suggestions")
+    if data is None:
+        # Cut-off or broken JSON: keep every complete {"label": ..., "prompt": ...} pair.
+        data = []
+        for label, prompt in re.findall(r'"label"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"\s*}', text):
+            try:
+                data.append({"label": json.loads(f'"{label}"'), "prompt": json.loads(f'"{prompt}"')})
+            except ValueError:
+                continue
     out = []
     for item in data if isinstance(data, list) else []:
         if isinstance(item, dict) and isinstance(item.get("label"), str) and isinstance(item.get("prompt"), str):
@@ -65,7 +73,7 @@ async def chat(s, system, message, user_name, what="Prompt helper"):
     llm = s["llm"]
     if not llm.get("enabled"):
         return None
-    body = {"model": llm["model"], "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}], "max_tokens": 1500, "temperature": 0.7}
+    body = {"model": llm["model"], "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}], "max_tokens": int(llm.get("max_tokens") or 4000), "temperature": 0.7}
     body.update(llm.get("extra_body") or {})
     headers = {}
     if llm.get("api_key"):
@@ -79,7 +87,10 @@ async def chat(s, system, message, user_name, what="Prompt helper"):
                 if r.status != 200:
                     log.warning("%s failed: HTTP %s %s", what, r.status, text[:300])
                     return None
-        return json.loads(text)["choices"][0]["message"].get("content") or ""
+        choice = json.loads(text)["choices"][0]
+        if choice.get("finish_reason") == "length":
+            log.warning("%s answer was cut off at llm.max_tokens (%s); raise it if this keeps happening", what, body["max_tokens"])
+        return choice["message"].get("content") or ""
     except Exception as ex:  # network errors, timeouts, bad JSON
         log.warning("%s failed: %s: %s", what, type(ex).__name__, ex)
         return None

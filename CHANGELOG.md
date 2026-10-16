@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- Fix: prompt suggestions never showed with reasoning LLMs. The answer (reasoning + 4 full prompts) was cut off at 1500 tokens and could not be read.
+- New setting `llm.max_tokens` (default 4000) for all LLM calls; the log now says when an answer was cut off.
+- Suggestions that arrived complete are kept even if the rest of the answer was cut off.
+
 ## 1.1.0
 
 - Prompt suggestions: with the prompt helper on, the first `/imagine` grid gets 4 suggested prompt changes (💡 lighting, 📐 composition, ✨ two more). A click makes 4 new pictures with that change and the same seed.

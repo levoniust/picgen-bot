@@ -88,6 +88,7 @@ DEFAULTS = {
         "model": "",
         "api_key": "",
         "timeout_seconds": 120,
+        "max_tokens": 4000,
         "user_header": "",
         "extra_body": {},
         "imagine_system_prompt": IMAGINE_SYSTEM_PROMPT,
@@ -132,6 +133,8 @@ def validate(s):
         raise ValueError("max_upscale_side must be 1024-8192")
     if int(s["max_queue"]) < 0:
         raise ValueError("max_queue must be 0 (no limit) or more")
+    if int(s["llm"]["max_tokens"]) < 256:
+        raise ValueError("llm.max_tokens must be 256 or more")
 
 
 class Settings:

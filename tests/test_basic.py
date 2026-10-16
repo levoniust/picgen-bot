@@ -118,3 +118,11 @@ def test_extract_suggestions():
     assert extract_suggestions("<think>hmm</think>```json\n" + good + "\n```")[0]["label"] == "Golden hour"
     assert len(extract_suggestions('[' + ','.join(['{"label": "a", "prompt": "b"}'] * 6) + ']')) == 4
     assert extract_suggestions("no json here") == [] and extract_suggestions(None) == []
+
+
+def test_extract_suggestions_cut_off():
+    # The LLM hit max_tokens in the middle of the third suggestion: keep the two complete ones.
+    cut = ('{\n    "suggestions": [\n        {"label": "Cold blue moonlight", "prompt": "a rocket at night, \\"cold\\" light"},\n'
+           '        {"label": "Low angle", "prompt": "a rocket from below"},\n        {"label": "Fog", "prompt": "a rocket in thick fo')
+    assert extract_suggestions(cut) == [{"label": "Cold blue moonlight", "prompt": 'a rocket at night, "cold" light'},
+                                        {"label": "Low angle", "prompt": "a rocket from below"}]
