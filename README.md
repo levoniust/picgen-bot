@@ -18,6 +18,7 @@ An optional LLM (any OpenAI-compatible chat API, e.g. llama.cpp, Ollama, LM Stud
 | **U1-U4** | that picture full size |
 | **V1-V4** | 4 close variations of that picture |
 | 🔄 | 4 new pictures from the same prompt |
+| 💡 📐 ✨ suggestions | with the prompt helper on: 4 suggested changes under each grid (lighting, composition, two more; after an edit, other edits of the same picture). A click makes 4 new pictures with that change and the same seed. |
 | **Vary (Subtle) / Vary (Strong)** | under a full-size picture: 4 variations, very close / more different |
 | **✏️ Edit** | under a full-size picture: a pop-up asks what to change, then 4 edited versions in a grid (edit again as often as you like) |
 | **⬆️ 2x / ⬆️ 4K** | AI upscale (4K = 3840 px on the long side), e.g. for a desktop background |
@@ -115,8 +116,8 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `llm.extra_body` | `{}` | extra JSON fields for the LLM request, e.g. `{"chat_template_kwargs": {"reasoning_effort": "low"}}` for llama.cpp reasoning models |
 | `llm.user_header` | "" | optional HTTP header that carries "Discord: <name>" (e.g. for per-user logging in a proxy) |
 | `llm.rewrite_edits` | true | light spelling/clarity touch-up of edit instructions |
-| `llm.suggest` | true | after `/imagine`, ask the helper for 4 prompt changes (lighting, composition, two free) shown as buttons under the grid |
-| `llm.imagine_system_prompt`, `llm.edit_system_prompt`, `llm.suggest_system_prompt` | built in | the helper's instructions |
+| `llm.suggest` | true | ask the helper for 4 prompt changes (lighting, composition, two free) shown as buttons under every grid; after an edit they are other edits of the same picture |
+| `llm.imagine_system_prompt`, `llm.edit_system_prompt`, `llm.suggest_system_prompt`, `llm.suggest_edit_system_prompt` | built in | the helper's instructions |
 | `allowed_role_ids` | `[]` | Discord role IDs allowed to use the bot in servers (empty = everyone) |
 | `job_days` | 30 | how long buttons keep working |
 | `max_queue` | 0 | refuse new requests while this many are waiting (0 = no limit) |

@@ -108,9 +108,10 @@ async def rewrite(s, request, user_name, edit=False):
     return result
 
 
-async def suggest(s, prompt, user_name):
-    """Up to 4 suggested prompt changes for a finished picture: [{"label": short button text, "prompt": the whole new prompt}]."""
-    content = await chat(s, s["llm"]["suggest_system_prompt"], prompt, user_name, "Prompt suggestions")
+async def suggest(s, prompt, user_name, edit=False):
+    """Up to 4 suggested prompt changes for a finished grid: [{"label": short button text, "prompt": the whole new prompt}].
+    edit=True: prompt is an edit instruction and the suggestions are other edit instructions."""
+    content = await chat(s, s["llm"]["suggest_edit_system_prompt" if edit else "suggest_system_prompt"], prompt, user_name, "Prompt suggestions")
     if content is None:
         return []
     result = extract_suggestions(content)

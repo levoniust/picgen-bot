@@ -61,6 +61,28 @@ Strictly return only JSON, no other text:
     ]
 }"""
 
+SUGGEST_EDIT_SYSTEM_PROMPT = """### Task:
+The user message is an edit instruction that an AI photo editor (Qwen Image 2.1 edit) just applied to a picture. Suggest 4 other versions of the instruction that would likely make the edited picture better or more interesting.
+
+### The 4 suggestions, in this order:
+1. Lighting: the same edit, plus a change to the light (time of day, light source, direction, color or mood of the light).
+2. Composition or detail: the same edit, plus a change to framing, background or a striking detail.
+3. and 4. Your choice: a stronger, bolder or different take on what the user asked for (style, colors, expression, weather...). Make them different from each other and from 1 and 2.
+
+### Rules:
+- Each suggestion is the whole new edit instruction, written as a direct command like the original (for example: "Make it night with a full moon and warm window light"). Keep what the user asked for unless the suggestion replaces it.
+- At most about 40 words per instruction.
+- "label": a short button text of at most 6 words saying the change (for example "Moonlit night" or "Add falling snow").
+- Never use double quotes inside the label or the instruction; words that must appear in the image stay in single quotes.
+
+### Output:
+Strictly return only JSON, no other text:
+{
+    "suggestions": [
+        {"label": "Short label", "prompt": "The whole new edit instruction."}
+    ]
+}"""
+
 DEFAULTS = {
     "comfy_url": "http://127.0.0.1:8188",
     "models": {
@@ -96,6 +118,7 @@ DEFAULTS = {
         "edit_system_prompt": EDIT_SYSTEM_PROMPT,
         "suggest": True,
         "suggest_system_prompt": SUGGEST_SYSTEM_PROMPT,
+        "suggest_edit_system_prompt": SUGGEST_EDIT_SYSTEM_PROMPT,
     },
     "allowed_role_ids": [],
     "job_days": 30,

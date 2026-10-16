@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- Prompt suggestions on every grid, not only the first `/imagine` grid:
+  - Edit grids get 4 suggested follow-up edits of the same picture (new setting `llm.suggest_edit_system_prompt`).
+  - A grid made from a suggestion gets new suggestions for its prompt, so you can keep exploring.
+  - 🔄 and V grids keep the suggestions of the grid they came from (same prompt, no extra LLM call).
+
 ## 1.1.1
 
 - Fix: prompt suggestions never showed with reasoning LLMs. The answer (reasoning + 4 full prompts) was cut off at 1500 tokens and could not be read.

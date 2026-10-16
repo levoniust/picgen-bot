@@ -167,22 +167,26 @@ class Engine:
             return request, "prompt helper unavailable, used your words"
         return result, ""
 
-    async def suggestions(self, prompt, user):
-        """Up to 4 suggested prompt changes from the prompt helper ([] if it is off or fails)."""
+    async def suggestions(self, prompt, user, edit=False):
+        """Up to 4 suggested prompt (or edit instruction) changes from the prompt helper ([] if it is off or fails)."""
         s = self.s
         if not s["llm"].get("enabled") or not s["llm"].get("suggest", True):
             return []
-        return await llm.suggest(s, prompt, user)
+        return await llm.suggest(s, prompt, user, edit=edit)
 
     def save_suggestions(self, job, suggestions):
         job.suggestions = list(suggestions)
         self.save_job(job)
 
     def suggest_job(self, old, index, user):
-        """New job that remakes `old` with suggestion `index` as the prompt, same seed so the pictures are easy to compare."""
+        """New job that remakes `old` with suggestion `index` as the prompt (edit jobs: as the edit instruction, on the same source picture),
+        same seed so the pictures are easy to compare."""
         if not 0 <= index < len(old.suggestions):
             raise UserError("That suggestion no longer exists.")
-        return self.new_job("suggest", user, request=old.request, prompt=old.suggestions[index]["prompt"], width=old.width, height=old.height, seed=old.seed)
+        job = self.new_job("suggest", user, request=old.request, prompt=old.suggestions[index]["prompt"], width=old.width, height=old.height, seed=old.seed, is_edit=old.is_edit)
+        if old.is_edit:
+            self.save_source(job, self.source(old))
+        return job
 
     # ---------- generation (call these inside in_line) ----------
 
@@ -237,12 +241,13 @@ class Engine:
             job.seed = old.seed + index
             job.var_strength = strength
         job.var_seed = random.randint(1, 2**31 - 1)
+        job.suggestions = list(old.suggestions)  # same prompt, so the same suggestions still fit
         if old.is_edit:
             self.save_source(job, self.source(old))
         return job
 
     def redo_job(self, old, user):
-        job = self.new_job("redo", user, request=old.request, prompt=old.prompt, width=old.width, height=old.height, is_edit=old.is_edit, seed=random.randint(1, 2**31 - 1))
+        job = self.new_job("redo", user, request=old.request, prompt=old.prompt, width=old.width, height=old.height, is_edit=old.is_edit, seed=random.randint(1, 2**31 - 1), suggestions=list(old.suggestions))
         if old.is_edit:
             self.save_source(job, self.source(old))
         return job

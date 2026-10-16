@@ -186,12 +186,17 @@ def test_prompt_suggestions(tmp_path):
         (tmp_path / "settings.json").write_text('{"llm": {"enabled": true}}')
         bot, engine = make_bot(tmp_path)
         ideas = [{"label": f"Idea {i}", "prompt": f"a fox, change {i}"} for i in range(4)]
+        edit_ideas = [{"label": f"Edit idea {i}", "prompt": f"Make it night, change {i}."} for i in range(4)]
         asked = []
 
         async def fake_chat(s, system, message, user_name, what="Prompt helper"):
             asked.append(system)
             if system == s["llm"]["suggest_system_prompt"]:
                 return '```json\n{"suggestions": ' + json.dumps(ideas) + '}\n```'
+            if system == s["llm"]["suggest_edit_system_prompt"]:
+                return json.dumps({"suggestions": edit_ideas})
+            if system == s["llm"]["edit_system_prompt"]:
+                return '{"prompt": "Make it night."}'
             return '{"prompt": "a detailed fox"}'
 
         llmmod.chat = fake_chat
@@ -204,13 +209,34 @@ def test_prompt_suggestions(tmp_path):
         assert [c.item.label for c in inter.final["view"].children][-4:] == [d["label"] for d in ideas]
         job = engine.load_job(jid)
         assert job.suggestions == ideas
-        # clicking a suggestion remakes the grid with that prompt and the same seed, without a new suggestion row
+        # clicking a suggestion remakes the grid with that prompt and the same seed, and gets new suggestions for that prompt
         b = FakeInteraction()
         await bot.on_button(b, "p", jid, 2)
-        new = engine.load_job(job_id_from(b.final))
+        new = engine.load_job(job_id_from(b.edits[-2]))
         assert new.prompt == "a fox, change 2" and new.seed == job.seed and new.kind == "suggest"
-        assert "Idea 2" in b.final["content"] and not new.suggestions
-        assert "pg|p|" not in " ".join(c.custom_id for c in b.final["view"].children)
+        assert "Idea 2" in b.edits[-2]["content"] and new.suggestions == ideas
+        assert asked[-1] == engine.s["llm"]["suggest_system_prompt"]
+        # 🔄 and V keep the suggestions (same prompt) without asking the LLM again
+        for action in ("r", "v"):
+            n = len(asked)
+            c = FakeInteraction()
+            await bot.on_button(c, action, jid, 0)
+            assert engine.load_job(job_id_from(c.final)).suggestions == ideas and len(asked) == n
+            assert [x.custom_id.split("|")[1] for x in c.final["view"].children][-4:] == ["p"] * 4
+        # an edit grid gets edit suggestions; clicking one redoes the edit on the same picture with that instruction
+        u = FakeInteraction()
+        await bot.on_button(u, "e", jid, 1)
+        m = FakeInteraction()
+        await bot.on_edit_submit(m, u.response.modal.job, 1, "make it night")
+        edit_job = engine.load_job(job_id_from(m.edits[-2]))
+        assert edit_job.is_edit and edit_job.suggestions == edit_ideas
+        assert [x.custom_id for x in m.final["view"].children][-4:] == [f"pg|p|{edit_job.id}|{i}" for i in range(4)]
+        e2 = FakeInteraction()
+        await bot.on_button(e2, "p", edit_job.id, 3)
+        sug_edit = engine.load_job(job_id_from(e2.edits[-2]))
+        assert sug_edit.is_edit and sug_edit.prompt == "Make it night, change 3." and sug_edit.seed == edit_job.seed
+        assert (engine.folder(sug_edit) / "source.png").exists() and "image" in engine._comfy.runs[-1]
+        assert sug_edit.suggestions == edit_ideas
         # raw prompts and a helper that fails get no row
         r = FakeInteraction()
         await bot.guarded(r, bot.do_imagine(r, "a fox", "1:1", True))
