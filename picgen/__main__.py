@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import __version__
 from .bot import PicGenBot
 from .config import DEFAULTS, Settings
 from .engine import Engine
@@ -45,6 +46,7 @@ def wait_for_network(host="discord.com", seconds=120):
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("discord.http").setLevel(logging.WARNING)
+    logging.getLogger("picgen").info("PIC_GEN %s starting", __version__)
     data = Path(os.environ.get("PICGEN_DATA", "data"))
     data.mkdir(parents=True, exist_ok=True)
     settings_file = data / "settings.json"

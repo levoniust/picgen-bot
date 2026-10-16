@@ -60,12 +60,22 @@ Typical times on an RTX 3060 12 GB: grid ~50 s, edit grid ~70 s, upscale ~40 s.
 
 ### Docker (recommended)
 
+Ready-made images: `ghcr.io/levoniust/picgen-bot:latest` (newest release) or a fixed version like `:1.0.0`.
+
 ```sh
-git clone https://github.com/levoniust/picgen-bot && cd picgen-bot
+mkdir picgen && cd picgen
+curl -O https://raw.githubusercontent.com/levoniust/picgen-bot/main/compose.example.yml
 printf '%s' 'YOUR_BOT_TOKEN' > discord_token && chmod 600 discord_token
 mkdir data
-docker compose -f compose.example.yml up -d --build
+docker compose -f compose.example.yml up -d
 ```
+
+**Updating:** `docker compose -f compose.example.yml pull && docker compose -f compose.example.yml up -d`. `latest` only moves
+on releases (see [Releases](https://github.com/levoniust/picgen-bot/releases)), so tools that watch for new images (TrueNAS
+Apps, Watchtower, Portainer...) offer an update exactly when a new release is out.
+
+**TrueNAS SCALE:** Apps → Discover → ⋮ → *Install via YAML*, paste the compose service (with host paths for `data` and the
+token file). TrueNAS then shows an *Update* button on the app whenever a new release is published.
 
 The first start writes `data/settings.json` with all defaults. Set at least `comfy_url` (e.g. `http://192.168.1.10:8188`;
 `127.0.0.1` inside a container is the container itself). The bot reloads the file automatically, no restart needed.
@@ -146,7 +156,7 @@ Invalid settings are refused (the bot keeps the last good ones and logs why).
 
 ## Development
 
-See [AGENTS.md](AGENTS.md) for the code layout, rules and tests (written for AI coding agents, useful for humans too).
+Changes are listed in [CHANGELOG.md](CHANGELOG.md). See [AGENTS.md](AGENTS.md) for the code layout, rules, tests and how to release (written for AI coding agents, useful for humans too).
 Pull requests welcome: run `python -m pytest tests` and, if you have ComfyUI, `python -m picgen.selftest`.
 
 ## License

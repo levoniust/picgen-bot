@@ -1,0 +1,47 @@
+name: release
+# Publishes the Docker image to ghcr.io when a version tag (v1.2.3) is pushed.
+# Only releases move the "latest" tag, so apps that watch it (e.g. TrueNAS) only see real releases.
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  contents: write
+  packages: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt pytest==9.1.1
+      - run: pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pytest -q tests
+      - name: Check the tag matches picgen/__init__.py
+        run: test "v$(python -c 'import picgen; print(picgen.__version__)')" = "${GITHUB_REF_NAME}"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: GitHub release with the changelog entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## "v {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "PIC_GEN $GITHUB_REF_NAME" --notes-file notes.md

@@ -9,7 +9,7 @@ import time
 import discord
 from discord import app_commands
 
-from . import images
+from . import __version__, images
 from .comfy import ComfyError
 from .engine import Engine, UserError
 
@@ -150,7 +150,7 @@ class PicGenBot(discord.Client):
         @app_commands.allowed_installs(**INSTALLS)
         @app_commands.allowed_contexts(**CONTEXTS)
         async def help_cmd(inter: discord.Interaction):
-            await inter.response.send_message(HELP, ephemeral=True)
+            await inter.response.send_message(f"{HELP}\n-# PIC_GEN {__version__} · github.com/levoniust/picgen-bot", ephemeral=True)
 
     # ---------- plumbing ----------
 

@@ -1,4 +1,7 @@
 FROM python:3.13.0-slim-bookworm
+LABEL org.opencontainers.image.source="https://github.com/levoniust/picgen-bot" \
+      org.opencontainers.image.description="PIC_GEN: Midjourney-style Discord bot for your own ComfyUI" \
+      org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PICGEN_DATA=/data
 WORKDIR /app
 COPY requirements.txt .

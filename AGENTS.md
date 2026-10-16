@@ -46,6 +46,16 @@ python -m picgen.selftest /tmp/st --data ./data  # needs a real ComfyUI (comfy_u
 The selftest makes real pictures (about 5 minutes on an RTX 3060) and writes them plus `results.txt` to the output folder; look at them, don't just trust "OK".
 Discord itself can't be driven by a bot account; `tests/test_bot_flows.py` covers the handlers with fake interactions, and a human must click through once after UI changes.
 
+## Releasing
+
+Users (and TrueNAS installs) follow `ghcr.io/levoniust/picgen-bot:latest`, which only moves on releases. To release:
+1. Make sure `main` is green (tests workflow) and the change was tried with `picgen.selftest` and, for UI changes, in Discord.
+2. Bump `__version__` in `picgen/__init__.py` (semver: fix = patch, new feature/setting = minor, breaking settings change = major).
+3. Add a `## x.y.z` section at the top of `CHANGELOG.md` (user-facing, short); it becomes the GitHub release notes.
+4. Commit, then `git tag vx.y.z && git push origin main vx.y.z`. The `release` workflow tests, checks the tag matches
+   `__version__`, pushes the image (`x.y.z`, `x.y`, `latest`) and creates the GitHub release.
+Never move `latest` by hand and never re-use a tag.
+
 ## Style
 
 Python 3.12+, standard library + discord.py + aiohttp + pillow only. Async everywhere in the bot. Short docstrings on modules, classes and non-obvious functions; comments explain *why*. Line length ~150.

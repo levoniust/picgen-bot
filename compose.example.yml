@@ -1,8 +1,8 @@
-# Example: docker compose -f compose.example.yml up -d --build
+# Example: docker compose -f compose.example.yml up -d
+# Update to the newest release: docker compose -f compose.example.yml pull && docker compose -f compose.example.yml up -d
 services:
   picgen:
-    build: .
-    image: picgen-bot:local
+    image: ghcr.io/levoniust/picgen-bot:latest   # or pin a release, e.g. :1.0.0 (to build yourself: replace with "build: .")
     restart: unless-stopped
     user: "1000:1000"            # owner of ./data
     environment:
