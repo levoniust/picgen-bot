@@ -1,6 +1,7 @@
 """Drives the Discord handlers with fake interactions and a fake ComfyUI, to catch errors in every flow without Discord or a GPU."""
 import asyncio
 import io
+import json
 import types
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +9,7 @@ import discord
 from PIL import Image
 
 from picgen import bot as botmod
+from picgen import llm as llmmod
 from picgen.config import Settings
 from picgen.engine import Engine
 
@@ -177,3 +179,53 @@ def test_role_filter(tmp_path):
         await bot.guarded(inter, bot.do_imagine(inter, "a fox", "1:1", True))
         assert "don't have a role" in inter.response.messages[0]
     asyncio.run(run())
+
+
+def test_prompt_suggestions(tmp_path):
+    async def run():
+        (tmp_path / "settings.json").write_text('{"llm": {"enabled": true}}')
+        bot, engine = make_bot(tmp_path)
+        ideas = [{"label": f"Idea {i}", "prompt": f"a fox, change {i}"} for i in range(4)]
+        asked = []
+
+        async def fake_chat(s, system, message, user_name, what="Prompt helper"):
+            asked.append(system)
+            if system == s["llm"]["suggest_system_prompt"]:
+                return '```json\n{"suggestions": ' + json.dumps(ideas) + '}\n```'
+            return '{"prompt": "a detailed fox"}'
+
+        llmmod.chat = fake_chat
+        inter = FakeInteraction()
+        await bot.guarded(inter, bot.do_imagine(inter, "a fox", "1:1", False))
+        jid = job_id_from(inter.edits[-2])
+        assert "view" in inter.final and "attachments" not in inter.final  # the row is added to the posted grid
+        ids = [c.custom_id for c in inter.final["view"].children]
+        assert ids[-4:] == [f"pg|p|{jid}|{i}" for i in range(4)]
+        assert [c.item.label for c in inter.final["view"].children][-4:] == [d["label"] for d in ideas]
+        job = engine.load_job(jid)
+        assert job.suggestions == ideas
+        # clicking a suggestion remakes the grid with that prompt and the same seed, without a new suggestion row
+        b = FakeInteraction()
+        await bot.on_button(b, "p", jid, 2)
+        new = engine.load_job(job_id_from(b.final))
+        assert new.prompt == "a fox, change 2" and new.seed == job.seed and new.kind == "suggest"
+        assert "Idea 2" in b.final["content"] and not new.suggestions
+        assert "pg|p|" not in " ".join(c.custom_id for c in b.final["view"].children)
+        # raw prompts and a helper that fails get no row
+        r = FakeInteraction()
+        await bot.guarded(r, bot.do_imagine(r, "a fox", "1:1", True))
+        assert not engine.load_job(job_id_from(r.final)).suggestions
+
+        async def broken_chat(*a, **k):
+            return None
+
+        llmmod.chat = broken_chat
+        f = FakeInteraction()
+        await bot.guarded(f, bot.do_imagine(f, "a fox", "1:1", False))
+        assert "attachments" in f.final and not engine.load_job(job_id_from(f.final)).suggestions
+
+    real = llmmod.chat
+    try:
+        asyncio.run(run())
+    finally:
+        llmmod.chat = real

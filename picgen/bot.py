@@ -18,6 +18,7 @@ log = logging.getLogger("picgen")
 HELP = """**PIC_GEN** makes pictures with AI (Qwen Image 2.1).
 - `/imagine prompt:` describe a picture → 4 versions in a grid. Optional `aspect` (shape) and `raw:True` (skip the AI prompt helper, use your exact words).
 - Under a grid: **U1-U4** = that picture full size · **V1-V4** = 4 close variations of it · 🔄 = 4 new pictures, same prompt.
+- With the prompt helper on, the first grid also gets 4 suggested prompt changes (💡 lighting, 📐 composition, ✨ two more); a click makes 4 new pictures with that change, same seed.
 - Under a full-size picture: **Vary (Subtle)** / **Vary (Strong)** · **✏️ Edit** = type what to change → 4 edited versions · **⬆️ 2x** / **⬆️ 4K** = bigger copy (4K = 3840 px, e.g. for a desktop background).
 - `/edit image: prompt:` upload a picture and say what to change ("make it night", "add a red scarf").
 - `/upscale image: size:` make your own picture bigger.
@@ -29,6 +30,8 @@ ASPECT_CHOICES = [app_commands.Choice(name=n, value=v) for n, v in [
 
 INSTALLS = dict(guilds=True, users=True)
 CONTEXTS = dict(guilds=True, dms=True, private_channels=True)
+
+SUGGEST_EMOJI = ["💡", "📐", "✨", "✨"]  # lighting, composition, two free picks (see SUGGEST_SYSTEM_PROMPT)
 
 BOT = None  # the running PicGenBot (buttons and the pop-up find it here)
 
@@ -76,6 +79,8 @@ def grid_view(job, count):
     view.add_item(PgButton("r", job.id, 0, emoji="🔄", row=0))
     for i in range(count):
         view.add_item(PgButton("v", job.id, i, label=f"V{i + 1}", row=1))
+    for i, idea in enumerate(job.suggestions[:4]):
+        view.add_item(PgButton("p", job.id, i, label=clip(idea["label"], 80), emoji=SUGGEST_EMOJI[i], row=2))
     return view
 
 
@@ -242,7 +247,8 @@ class PicGenBot(discord.Client):
 
     # ---------- grids ----------
 
-    async def run_grid(self, inter, job, header, note, maker):
+    async def run_grid(self, inter, job, header, note, maker, ideas=None):
+        """Makes and posts a grid. ideas: an optional task with prompt suggestions, added as a button row once it is done."""
         s = self.engine.s
         count = int(s["grid_count"])
         per = 18 if job.is_edit else 12
@@ -257,6 +263,18 @@ class PicGenBot(discord.Client):
             await self.post(inter, content, data, f"picgen_{job.id}.{ext}", full_view(job, 0))
         else:
             await self.post(inter, content, images.make_grid(pictures), f"picgen_{job.id}_grid.jpg", grid_view(job, len(pictures)))
+            if ideas is not None:
+                await self.add_suggestions(inter, job, len(pictures), ideas)
+
+    async def add_suggestions(self, inter, job, count, ideas):
+        """Waits for the prompt suggestions (asked for while the pictures were made) and adds them under the posted grid."""
+        try:
+            suggestions = await ideas
+            if suggestions:
+                self.engine.save_suggestions(job, suggestions)
+                await inter.edit_original_response(view=grid_view(job, count))
+        except Exception as ex:  # suggestions are a bonus; the pictures are already posted
+            log.warning("Could not add prompt suggestions: %s: %s", type(ex).__name__, ex)
 
     async def do_imagine(self, inter, request, aspect, raw):
         user = name_of(inter)
@@ -266,7 +284,15 @@ class PicGenBot(discord.Client):
             prompt, note = await self.engine.helper(request, user)
         w, h = images.size_for(images.parse_aspect(aspect), int(self.engine.s["size"]))
         job = self.engine.new_job("imagine", user, request=request, prompt=prompt, width=w, height=h, seed=random.randint(1, 2**31 - 1))
-        await self.run_grid(inter, job, f"**{user}**: {clip(request, 300)}", note, lambda: self.engine.imagine(job))
+        # Ask for suggestions while the pictures are made, so they cost no extra wait.
+        ideas = None
+        if not raw and int(self.engine.s["grid_count"]) > 1:
+            ideas = asyncio.create_task(self.engine.suggestions(prompt, user))
+        try:
+            await self.run_grid(inter, job, f"**{user}**: {clip(request, 300)}", note, lambda: self.engine.imagine(job), ideas)
+        finally:
+            if ideas is not None and not ideas.done():
+                ideas.cancel()
 
     async def do_edit(self, inter, source, request, raw, where=""):
         user = name_of(inter)
@@ -300,6 +326,7 @@ class PicGenBot(discord.Client):
             "vs": lambda: self.do_vary(inter, job, index, "vary_subtle", "Vary (Subtle)"),
             "vx": lambda: self.do_vary(inter, job, index, "vary_strong", "Vary (Strong)"),
             "r": lambda: self.do_redo(inter, job),
+            "p": lambda: self.do_suggestion(inter, job, index),
             "x2": lambda: self.do_upscale(inter, job, index, 2),
             "x4": lambda: self.do_upscale(inter, job, index, 4),
         }
@@ -318,6 +345,11 @@ class PicGenBot(discord.Client):
     async def do_redo(self, inter, job):
         new = self.engine.redo_job(job, name_of(inter))
         await self.run_grid(inter, new, f"🔄 **{name_of(inter)}**: {clip(job.request, 300)}", "", lambda: self.engine.regrid(new))
+
+    async def do_suggestion(self, inter, job, index):
+        new = self.engine.suggest_job(job, index, name_of(inter))
+        label = job.suggestions[index]["label"]
+        await self.run_grid(inter, new, f"{SUGGEST_EMOJI[index]} **{name_of(inter)}**: {clip(label, 80)} · {clip(job.request, 250)}", "", lambda: self.engine.regrid(new))
 
     async def on_edit_submit(self, inter, job, index, request):
         async def work():

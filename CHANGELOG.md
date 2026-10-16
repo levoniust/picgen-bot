@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- Prompt suggestions: with the prompt helper on, the first `/imagine` grid gets 4 suggested prompt changes (💡 lighting, 📐 composition, ✨ two more). A click makes 4 new pictures with that change and the same seed.
+- New settings `llm.suggest` (on by default) and `llm.suggest_system_prompt`.
+
 ## 1.0.0
 
 First release.

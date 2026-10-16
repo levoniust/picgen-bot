@@ -7,7 +7,7 @@ from PIL import Image, PngImagePlugin
 from picgen import images, workflows
 from picgen.config import DEFAULTS, Settings, merge, validate
 from picgen.engine import Engine
-from picgen.llm import extract_prompt
+from picgen.llm import extract_prompt, extract_suggestions
 
 
 @pytest.mark.parametrize("content,expected", [
@@ -110,3 +110,11 @@ def test_max_queue(tmp_path):
         engine.pending = 1
         assert await engine.in_line(lambda: asyncio.sleep(0, result="ok")) == "ok"
     asyncio.run(run())
+
+
+def test_extract_suggestions():
+    good = '{"suggestions": [{"label": "Golden  hour", "prompt": "a fox at sunset"}, {"label": "", "prompt": "x"}, {"label": "Low angle", "prompt": "a fox from below"}]}'
+    assert extract_suggestions(good) == [{"label": "Golden hour", "prompt": "a fox at sunset"}, {"label": "Low angle", "prompt": "a fox from below"}]
+    assert extract_suggestions("<think>hmm</think>```json\n" + good + "\n```")[0]["label"] == "Golden hour"
+    assert len(extract_suggestions('[' + ','.join(['{"label": "a", "prompt": "b"}'] * 6) + ']')) == 4
+    assert extract_suggestions("no json here") == [] and extract_suggestions(None) == []
