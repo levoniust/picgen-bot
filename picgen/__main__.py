@@ -9,7 +9,9 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import sys
+import time
 from pathlib import Path
 
 from .bot import PicGenBot
@@ -27,6 +29,19 @@ def read_token():
     sys.exit(f"No Discord token: set DISCORD_TOKEN or put it in {path} (PICGEN_TOKEN_FILE).")
 
 
+def wait_for_network(host="discord.com", seconds=120):
+    """A freshly started container can have no DNS for a few seconds; wait instead of crashing the login."""
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            socket.getaddrinfo(host, 443)
+            return
+        except OSError as ex:
+            if time.monotonic() > deadline:
+                sys.exit(f"No network: cannot resolve {host} ({ex}).")
+            time.sleep(2)
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("discord.http").setLevel(logging.WARNING)
@@ -38,6 +53,7 @@ def main():
         logging.getLogger("picgen").info("Wrote default settings to %s - edit comfy_url (and llm) there.", settings_file)
     settings = Settings(data)
     bot = PicGenBot(Engine(settings, data))
+    wait_for_network()
     bot.run(read_token(), log_handler=None)
 
 
