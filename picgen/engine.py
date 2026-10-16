@@ -25,7 +25,7 @@ class UserError(Exception):
 class Job:
     """One finished request, kept on disk so the buttons under its pictures keep working (also after a restart)."""
     id: str
-    kind: str  # imagine, redo, vary, edit, upload
+    kind: str  # imagine, redo, vary, edit, upload, suggest
     user: str
     request: str = ""  # what the user typed
     prompt: str = ""  # what was sent to the model (after the prompt helper, without the hidden quality text)
@@ -37,6 +37,7 @@ class Job:
     is_edit: bool = False  # edit results (source.png in the job folder is the picture that was edited)
     created: float = 0.0
     files: list = dataclasses.field(default_factory=list)
+    suggestions: list = dataclasses.field(default_factory=list)  # [{"label", "prompt"}] from the prompt helper, shown as buttons under the grid
 
 
 class Engine:
@@ -165,6 +166,23 @@ class Engine:
         if result is None:
             return request, "prompt helper unavailable, used your words"
         return result, ""
+
+    async def suggestions(self, prompt, user):
+        """Up to 4 suggested prompt changes from the prompt helper ([] if it is off or fails)."""
+        s = self.s
+        if not s["llm"].get("enabled") or not s["llm"].get("suggest", True):
+            return []
+        return await llm.suggest(s, prompt, user)
+
+    def save_suggestions(self, job, suggestions):
+        job.suggestions = list(suggestions)
+        self.save_job(job)
+
+    def suggest_job(self, old, index, user):
+        """New job that remakes `old` with suggestion `index` as the prompt, same seed so the pictures are easy to compare."""
+        if not 0 <= index < len(old.suggestions):
+            raise UserError("That suggestion no longer exists.")
+        return self.new_job("suggest", user, request=old.request, prompt=old.suggestions[index]["prompt"], width=old.width, height=old.height, seed=old.seed)
 
     # ---------- generation (call these inside in_line) ----------
 

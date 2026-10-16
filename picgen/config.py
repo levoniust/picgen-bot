@@ -39,6 +39,28 @@ Strictly return only JSON, no other text:
     "prompt": "The edit instruction."
 }"""
 
+SUGGEST_SYSTEM_PROMPT = """### Task:
+The user message is the prompt that an image generator (Qwen Image 2.1) just turned into a picture. Suggest 4 changes to the prompt that would likely make the picture better or more interesting.
+
+### The 4 suggestions, in this order:
+1. Lighting: change the light (time of day, light source, direction, color, contrast or mood of the light).
+2. Composition: change the framing (camera angle, distance, lens, subject placement, foreground/background, depth of field).
+3. and 4. Your choice: whatever else would help this picture most (style, setting, colors, details, expression, weather...). Make them different from each other and from 1 and 2.
+
+### Rules:
+- Each suggestion is one clear change; keep everything else about the picture the same.
+- "label": a short button text of at most 6 words saying the change (for example "Golden hour backlight" or "Low angle close-up").
+- "prompt": the whole new prompt with the change worked in, one flowing paragraph like the original. Keep every detail of the original that the change does not replace.
+- Never use double quotes inside the label or the prompt; words that must appear in the image stay in single quotes.
+
+### Output:
+Strictly return only JSON, no other text:
+{
+    "suggestions": [
+        {"label": "Short label", "prompt": "The whole new prompt."}
+    ]
+}"""
+
 DEFAULTS = {
     "comfy_url": "http://127.0.0.1:8188",
     "models": {
@@ -71,6 +93,8 @@ DEFAULTS = {
         "imagine_system_prompt": IMAGINE_SYSTEM_PROMPT,
         "rewrite_edits": True,
         "edit_system_prompt": EDIT_SYSTEM_PROMPT,
+        "suggest": True,
+        "suggest_system_prompt": SUGGEST_SYSTEM_PROMPT,
     },
     "allowed_role_ids": [],
     "job_days": 30,

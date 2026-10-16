@@ -114,7 +114,8 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `llm.extra_body` | `{}` | extra JSON fields for the LLM request, e.g. `{"chat_template_kwargs": {"reasoning_effort": "low"}}` for llama.cpp reasoning models |
 | `llm.user_header` | "" | optional HTTP header that carries "Discord: <name>" (e.g. for per-user logging in a proxy) |
 | `llm.rewrite_edits` | true | light spelling/clarity touch-up of edit instructions |
-| `llm.imagine_system_prompt`, `llm.edit_system_prompt` | built in | the helper's instructions |
+| `llm.suggest` | true | after `/imagine`, ask the helper for 4 prompt changes (lighting, composition, two free) shown as buttons under the grid |
+| `llm.imagine_system_prompt`, `llm.edit_system_prompt`, `llm.suggest_system_prompt` | built in | the helper's instructions |
 | `allowed_role_ids` | `[]` | Discord role IDs allowed to use the bot in servers (empty = everyone) |
 | `job_days` | 30 | how long buttons keep working |
 | `max_queue` | 0 | refuse new requests while this many are waiting (0 = no limit) |

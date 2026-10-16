@@ -35,13 +35,37 @@ def extract_prompt(content):
     return None
 
 
-async def rewrite(s, request, user_name, edit=False):
-    """Returns the rewritten prompt, or None if the LLM is off/unreachable/answered nonsense (callers then use the user's words)."""
+def extract_suggestions(content):
+    """Pulls [{"label", "prompt"}, ...] out of the LLM's suggestion answer (code fences, text around the JSON and a bare list are fine)."""
+    if not content:
+        return []
+    text = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    data = None
+    for start, end in ((text.find("{"), text.rfind("}")), (text.find("["), text.rfind("]"))):
+        if start != -1 and end > start:
+            try:
+                data = json.loads(text[start:end + 1])
+                break
+            except ValueError:
+                continue
+    if isinstance(data, dict):
+        data = data.get("suggestions")
+    out = []
+    for item in data if isinstance(data, list) else []:
+        if isinstance(item, dict) and isinstance(item.get("label"), str) and isinstance(item.get("prompt"), str):
+            label, prompt = " ".join(item["label"].split()), item["prompt"].strip()
+            if label and prompt:
+                out.append({"label": label, "prompt": prompt})
+    return out[:4]
+
+
+async def chat(s, system, message, user_name, what="Prompt helper"):
+    """One chat call to the LLM; returns the answer text, or None if the LLM is off/unreachable."""
     llm = s["llm"]
     if not llm.get("enabled"):
         return None
-    system = llm["edit_system_prompt"] if edit else llm["imagine_system_prompt"]
-    body = {"model": llm["model"], "messages": [{"role": "system", "content": system}, {"role": "user", "content": request}], "max_tokens": 1500, "temperature": 0.7}
+    body = {"model": llm["model"], "messages": [{"role": "system", "content": system}, {"role": "user", "content": message}], "max_tokens": 1500, "temperature": 0.7}
     body.update(llm.get("extra_body") or {})
     headers = {}
     if llm.get("api_key"):
@@ -53,13 +77,32 @@ async def rewrite(s, request, user_name, edit=False):
             async with session.post(llm["url"], json=body, headers=headers) as r:
                 text = await r.text()
                 if r.status != 200:
-                    log.warning("Prompt helper failed: HTTP %s %s", r.status, text[:300])
+                    log.warning("%s failed: HTTP %s %s", what, r.status, text[:300])
                     return None
-        content = json.loads(text)["choices"][0]["message"].get("content") or ""
-        result = extract_prompt(content)
-        if result is None:
-            log.warning("Prompt helper answer had no prompt: %s", content[:300])
-        return result
+        return json.loads(text)["choices"][0]["message"].get("content") or ""
     except Exception as ex:  # network errors, timeouts, bad JSON
-        log.warning("Prompt helper failed: %s: %s", type(ex).__name__, ex)
+        log.warning("%s failed: %s: %s", what, type(ex).__name__, ex)
         return None
+
+
+async def rewrite(s, request, user_name, edit=False):
+    """Returns the rewritten prompt, or None if the LLM is off/unreachable/answered nonsense (callers then use the user's words)."""
+    system = s["llm"]["edit_system_prompt"] if edit else s["llm"]["imagine_system_prompt"]
+    content = await chat(s, system, request, user_name)
+    if content is None:
+        return None
+    result = extract_prompt(content)
+    if result is None:
+        log.warning("Prompt helper answer had no prompt: %s", content[:300])
+    return result
+
+
+async def suggest(s, prompt, user_name):
+    """Up to 4 suggested prompt changes for a finished picture: [{"label": short button text, "prompt": the whole new prompt}]."""
+    content = await chat(s, s["llm"]["suggest_system_prompt"], prompt, user_name, "Prompt suggestions")
+    if content is None:
+        return []
+    result = extract_suggestions(content)
+    if not result:
+        log.warning("Prompt suggestions answer had none: %s", content[:300])
+    return result
