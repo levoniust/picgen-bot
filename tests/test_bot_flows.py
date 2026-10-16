@@ -1,0 +1,179 @@
+"""Drives the Discord handlers with fake interactions and a fake ComfyUI, to catch errors in every flow without Discord or a GPU."""
+import asyncio
+import io
+import types
+from unittest.mock import AsyncMock, MagicMock
+
+import discord
+from PIL import Image
+
+from picgen import bot as botmod
+from picgen.config import Settings
+from picgen.engine import Engine
+
+
+def png(w, h, color=(10, 120, 200)):
+    out = io.BytesIO()
+    Image.new("RGB", (w, h), color).save(out, "PNG")
+    return out.getvalue()
+
+
+class FakeComfy:
+    def __init__(self, url, has_variation=True):
+        self.url = url.rstrip("/")
+        self.has_variation = has_variation
+        self.runs = []
+
+    async def has_node(self, name):
+        return self.has_variation
+
+    async def upload(self, data, name):
+        return f"{name} [temp]"
+
+    async def run(self, wf, out):
+        self.runs.append(wf)
+        if "scale" in wf:
+            return [png(wf["scale"]["inputs"]["width"], wf["scale"]["inputs"]["height"])]
+        if "latent" in wf:
+            return [png(wf["latent"]["inputs"]["width"], wf["latent"]["inputs"]["height"])]
+        return [png(1024, 1024)]
+
+    async def close(self):
+        pass
+
+
+class FakeResponse:
+    def __init__(self):
+        self.done = False
+        self.modal = None
+        self.messages = []
+
+    def is_done(self):
+        return self.done
+
+    async def defer(self, thinking=False, ephemeral=False):
+        self.done = True
+
+    async def send_message(self, text, ephemeral=False):
+        self.done = True
+        self.messages.append(text)
+
+    async def send_modal(self, modal):
+        self.done = True
+        self.modal = modal
+
+
+class FakeInteraction:
+    def __init__(self):
+        self.user = types.SimpleNamespace(display_name="Tester", global_name="Tester", name="tester", id=1)
+        self.response = FakeResponse()
+        self.edits = []
+        self.channel = MagicMock()
+        self.channel.send = AsyncMock()
+
+    async def edit_original_response(self, **kw):
+        self.edits.append(kw)
+
+    @property
+    def final(self):
+        return self.edits[-1]
+
+
+def make_bot(tmp_path, has_variation=True):
+    settings = Settings(tmp_path)
+    engine = Engine(settings, tmp_path)
+    engine._comfy = FakeComfy(settings.get()["comfy_url"], has_variation)
+    bot = botmod.PicGenBot(engine)
+    botmod.BOT = bot
+    return bot, engine
+
+
+def attachment(data, name="photo.png"):
+    a = MagicMock()
+    a.content_type, a.size, a.filename = "image/png", len(data), name
+    a.read = AsyncMock(return_value=data)
+    return a
+
+
+def job_id_from(edit):
+    return edit["view"].children[0].job_id
+
+
+def test_all_flows(tmp_path):
+    async def run():
+        bot, engine = make_bot(tmp_path)
+        # /imagine
+        inter = FakeInteraction()
+        await bot.guarded(inter, bot.do_imagine(inter, "a fox", "16:9", True))
+        final = inter.final
+        assert "attachments" in final and final["attachments"][0].filename.endswith("_grid.jpg"), final.get("content")
+        jid = job_id_from(final)
+        assert [c.custom_id for c in final["view"].children][:5] == [f"pg|u|{jid}|{i}" for i in range(4)] + [f"pg|r|{jid}|0"]
+        # U2, V1, 🔄, Vary subtle/strong, 2x, 4K
+        for action in ("u", "v", "r", "vs", "vx", "x2", "x4"):
+            b = FakeInteraction()
+            await bot.on_button(b, action, jid, 1)
+            assert "attachments" in b.final, (action, b.final.get("content"))
+            if action == "u":
+                assert [c.custom_id.split("|")[1] for c in b.final["view"].children] == ["vs", "vx", "e", "x2", "x4"]
+            if action == "x4":
+                assert "3840x" in b.final["content"]
+        # ✏️ Edit: pop-up, then submit
+        b = FakeInteraction()
+        await bot.on_button(b, "e", jid, 2)
+        assert isinstance(b.response.modal, botmod.EditModal)
+        m = FakeInteraction()
+        await bot.on_edit_submit(m, b.response.modal.job, 2, "make it night")
+        assert "attachments" in m.final and "picture 3" in m.final["content"]
+        edit_job = engine.load_job(job_id_from(m.final))
+        assert edit_job.is_edit and (engine.folder(edit_job) / "source.png").exists()
+        # 🔄 and V on an edit grid redo the edit
+        for action in ("r", "v"):
+            b = FakeInteraction()
+            await bot.on_button(b, action, edit_job.id, 0)
+            assert "attachments" in b.final, b.final.get("content")
+            assert "image" in engine._comfy.runs[-1]
+        # /edit and /upscale with uploads
+        e = FakeInteraction()
+        await bot.guarded(e, bot.do_edit_upload(e, attachment(png(800, 600)), "add a hat", True))
+        assert "attachments" in e.final
+        u = FakeInteraction()
+        await bot.guarded(u, bot.do_upscale_upload(u, attachment(png(800, 600)), 4))
+        assert "3840x2880" in u.final["content"]
+        # errors: bad upload, too-big upscale, unknown job
+        bad = FakeInteraction()
+        await bot.guarded(bad, bot.do_upscale_upload(bad, attachment(b"not a picture"), 2))
+        assert bad.final["content"].startswith("❌")
+        big = FakeInteraction()
+        await bot.guarded(big, bot.do_upscale_upload(big, attachment(png(3840, 2160)), 4))
+        assert "already" in big.final["content"]
+        gone = FakeInteraction()
+        await bot.on_button(gone, "u", "ffffffffff", 0)
+        assert "too old" in gone.response.messages[0]
+        # pictures were saved for the share
+        assert len(list((tmp_path / "pictures").rglob("*.png"))) > 10
+    asyncio.run(run())
+
+
+def test_vary_without_node_says_so(tmp_path):
+    async def run():
+        bot, engine = make_bot(tmp_path, has_variation=False)
+        inter = FakeInteraction()
+        await bot.guarded(inter, bot.do_imagine(inter, "a fox", "1:1", True))
+        jid = job_id_from(inter.final)
+        b = FakeInteraction()
+        await bot.on_button(b, "v", jid, 0)
+        assert "PIC_GEN node" in b.final["content"]
+    asyncio.run(run())
+
+
+def test_role_filter(tmp_path):
+    async def run():
+        (tmp_path / "settings.json").write_text('{"allowed_role_ids": ["42"]}')
+        bot, engine = make_bot(tmp_path)
+        inter = FakeInteraction()
+        inter.user = MagicMock(spec=discord.Member)
+        inter.user.roles = [types.SimpleNamespace(id=7)]
+        await bot.guarded(inter, bot.do_imagine(inter, "a fox", "1:1", True))
+        assert "don't have a role" in inter.response.messages[0]
+    asyncio.run(run())

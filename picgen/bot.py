@@ -106,7 +106,7 @@ class PicGenBot(discord.Client):
         self.add_dynamic_items(PgButton)
         synced = await self.tree.sync()
         log.info("Slash commands registered: %s", " ".join(f"/{c.name}" for c in synced))
-        self.loop.create_task(self._housekeeping())
+        self._housekeeper = asyncio.create_task(self._housekeeping())
 
     async def on_ready(self):
         self.state = f"connected as {self.user}"
