@@ -1,0 +1,14 @@
+# Example: docker compose -f compose.example.yml up -d --build
+services:
+  picgen:
+    build: .
+    image: picgen-bot:local
+    restart: unless-stopped
+    user: "1000:1000"            # owner of ./data
+    environment:
+      PICGEN_DATA: /data
+      PICGEN_TOKEN_FILE: /run/secrets/discord_token
+      TZ: UTC
+    volumes:
+      - ./data:/data                                   # settings.json, jobs/, pictures/
+      - ./discord_token:/run/secrets/discord_token:ro  # file containing only the bot token
