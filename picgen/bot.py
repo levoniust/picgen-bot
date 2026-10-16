@@ -187,11 +187,15 @@ class PicGenBot(discord.Client):
         try:
             await inter.edit_original_response(**kwargs)
         except discord.HTTPException as ex:
-            log.warning("Could not edit the original response (%s), posting in the channel instead", ex)
+            # Interaction tokens expire after 15 minutes (a long queue); then post in the channel if the bot may.
+            log.warning("Could not edit the original response (%s), trying the channel instead", ex)
             send = dict(content=content, file=discord.File(io.BytesIO(data), filename=filename), allowed_mentions=discord.AllowedMentions.none())
             if view is not None:
                 send["view"] = view
-            await inter.channel.send(**send)
+            try:
+                await inter.channel.send(**send)
+            except (discord.HTTPException, AttributeError) as ex2:
+                log.warning("Could not post the result for %s at all: %s", inter.user, ex2)
 
     async def report(self, inter, ex):
         if isinstance(ex, (UserError, ComfyError)):

@@ -95,3 +95,18 @@ def test_jobs_roundtrip_and_vary_seeds(tmp_path):
     v2 = engine.vary_job(v, 1, 0.45, "x")
     assert v2.seed == 102 and v2.var_strength == 0.45
     assert engine.load_job("../etc") is None
+
+
+def test_max_queue(tmp_path):
+    import asyncio
+    from picgen.engine import UserError
+    (tmp_path / "settings.json").write_text('{"max_queue": 2}')
+    engine = Engine(Settings(tmp_path), tmp_path)
+
+    async def run():
+        engine.pending = 2
+        with pytest.raises(UserError, match="busy"):
+            await engine.in_line(lambda: asyncio.sleep(0))
+        engine.pending = 1
+        assert await engine.in_line(lambda: asyncio.sleep(0, result="ok")) == "ok"
+    asyncio.run(run())

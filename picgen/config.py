@@ -66,14 +66,15 @@ DEFAULTS = {
         "model": "",
         "api_key": "",
         "timeout_seconds": 120,
-        "user_header": "X-OpenWebUI-User-Name",
-        "extra_body": {"chat_template_kwargs": {"reasoning_effort": "low"}},
+        "user_header": "",
+        "extra_body": {},
         "imagine_system_prompt": IMAGINE_SYSTEM_PROMPT,
         "rewrite_edits": True,
         "edit_system_prompt": EDIT_SYSTEM_PROMPT,
     },
     "allowed_role_ids": [],
     "job_days": 30,
+    "max_queue": 0,
     "max_upload_mb": 20,
     "max_post_mb": 9,
     "save_pictures": True,
@@ -105,6 +106,8 @@ def validate(s):
             raise ValueError(f"{key} must be between 0 and 1")
     if not 1024 <= int(s["max_upscale_side"]) <= 8192:
         raise ValueError("max_upscale_side must be 1024-8192")
+    if int(s["max_queue"]) < 0:
+        raise ValueError("max_queue must be 0 (no limit) or more")
 
 
 class Settings:

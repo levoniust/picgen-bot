@@ -6,6 +6,10 @@ full-size pictures, close variations, AI edits and 4K upscales. Everything runs 
 It uses **Qwen Image 2.1** (text-to-image and editing in one model) with its 8-step Turbo LoRA, and **4x-UltraSharpV2** for upscaling.
 An optional LLM (any OpenAI-compatible chat API, e.g. llama.cpp, Ollama, LM Studio) turns short ideas into detailed prompts.
 
+| `/imagine a cozy bookshop at night in the rain, chalkboard sign that says 'OPEN LATE'` | ✏️ Edit → "make it daytime with sunshine" |
+|---|---|
+| ![grid](docs/example-grid.jpg) | ![edit grid](docs/example-edit.jpg) |
+
 ## What users get
 
 | Command / button | What it does |
@@ -47,7 +51,7 @@ Typical times on an RTX 3060 12 GB: grid ~50 s, edit grid ~70 s, upscale ~40 s.
    1. [discord.com/developers/applications](https://discord.com/developers/applications) → New Application → name it.
    2. *Bot* → Reset Token → copy the token (keep it secret). No privileged intents are needed.
    3. *Installation* → enable **Guild Install** (scopes `applications.commands`, `bot`; permissions *Send Messages*,
-      *Attach Files*, *Embed Links*, *Use Slash Commands*) and, if you want, **User Install** (scope `applications.commands`).
+      *Attach Files*, *Embed Links*, *Use Application Commands*) and, if you want, **User Install** (scope `applications.commands`).
    4. Use the install link to add the bot to your server (and/or your account).
 
 4. Optional: an OpenAI-compatible LLM endpoint for the prompt helper.
@@ -96,14 +100,38 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `quality_suffix` / `edit_suffix` | ... | hidden text added to every prompt / edit |
 | `vary_grid` / `vary_subtle` / `vary_strong` | 0.3 / 0.15 / 0.45 | how different variations are (0 = same, 1 = new picture) |
 | `max_upscale_side` | 3840 | size of "4K" |
-| `llm.enabled`, `llm.url`, `llm.model`, `llm.api_key` | off | the prompt helper |
+| `llm.enabled`, `llm.url`, `llm.model`, `llm.api_key` | off | the prompt helper (OpenAI-compatible `/v1/chat/completions` URL) |
+| `llm.extra_body` | `{}` | extra JSON fields for the LLM request, e.g. `{"chat_template_kwargs": {"reasoning_effort": "low"}}` for llama.cpp reasoning models |
+| `llm.user_header` | "" | optional HTTP header that carries "Discord: <name>" (e.g. for per-user logging in a proxy) |
 | `llm.rewrite_edits` | true | light spelling/clarity touch-up of edit instructions |
 | `llm.imagine_system_prompt`, `llm.edit_system_prompt` | built in | the helper's instructions |
 | `allowed_role_ids` | `[]` | Discord role IDs allowed to use the bot in servers (empty = everyone) |
 | `job_days` | 30 | how long buttons keep working |
+| `max_queue` | 0 | refuse new requests while this many are waiting (0 = no limit) |
 | `save_pictures`, `pictures_hint` | true, "" | keep every picture in `data/pictures/<date>/`; `pictures_hint` = how users reach that folder (shown under upscales) |
 
 Invalid settings are refused (the bot keeps the last good ones and logs why).
+
+## Good to know
+
+- **Content:** there is no content filter. What gets made depends on your models, LoRAs and LLM. You are responsible for what
+  your bot posts; Discord requires adult content to stay in age-restricted channels.
+- **Long queues:** Discord lets a bot answer an interaction for 15 minutes. If a request waits longer than that, the bot posts
+  the result as a normal channel message instead (only possible where the bot is a member of the server).
+- **The ✏️ Edit pop-up** belongs to the running bot; if the bot restarts while a pop-up is open, just click Edit again.
+- **One GPU, many users:** jobs run one at a time. Other ComfyUI users (e.g. Open WebUI) share the same queue in ComfyUI.
+
+## Troubleshooting
+
+| Message / symptom | Fix |
+|---|---|
+| "The application did not respond" | the bot is not running or cannot reach Discord; check its log |
+| "Variations need the PIC_GEN node" | copy `comfyui_nodes/picgen_nodes` into ComfyUI's `custom_nodes`, restart ComfyUI |
+| "ComfyUI refused the job: ... not in list" | a model file name in `settings.json` doesn't match a file in ComfyUI |
+| "Could not reach ComfyUI" | wrong `comfy_url` (inside Docker, `127.0.0.1` is the container itself) |
+| "The job was stopped in ComfyUI" | someone pressed Cancel/Interrupt in ComfyUI; try again |
+| "prompt helper unavailable, used your words" | the LLM is off or unreachable; pictures still work |
+| `settings.json not loaded: ...` in the log | a typo or invalid value; the previous settings stay active until it is fixed |
 
 ## How it works
 
@@ -115,6 +143,11 @@ Invalid settings are refused (the bot keeps the last good ones and logs why).
 - Pictures are uploaded to ComfyUI's temp folder and results come back from preview nodes, so nothing piles up in ComfyUI's
   input/output folders. Saved PNGs are re-encoded without ComfyUI's embedded workflow.
 - Jobs (`data/jobs/<id>/`) remember seed, prompt and source picture, so buttons can redo or vary exactly what was made.
+
+## Development
+
+See [AGENTS.md](AGENTS.md) for the code layout, rules and tests (written for AI coding agents, useful for humans too).
+Pull requests welcome: run `python -m pytest tests` and, if you have ComfyUI, `python -m picgen.selftest`.
 
 ## License
 

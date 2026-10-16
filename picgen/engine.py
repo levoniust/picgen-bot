@@ -62,12 +62,17 @@ class Engine:
     def comfy(self):
         url = self.s["comfy_url"]
         if self._comfy is None or self._comfy.url != url.rstrip("/"):
+            if self._comfy is not None:
+                asyncio.ensure_future(self._comfy.close())
             self._comfy = Comfy(url)
         return self._comfy
 
     async def in_line(self, work, on_wait=None):
         """Runs work() when it is this request's turn on the GPU. on_wait(n) is told how many are ahead."""
         ahead = self.pending
+        limit = int(self.s.get("max_queue") or 0)
+        if limit and ahead >= limit:
+            raise UserError(f"PIC_GEN is busy ({ahead} jobs waiting). Please try again in a few minutes.")
         self.pending += 1
         try:
             if ahead and on_wait:
