@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0
+
+- New `/say text [voice]`: reads text aloud and posts the voice clip. Works with any OpenAI-compatible text-to-speech server; off until you set `speech.enabled` and `speech.url` (new `speech.*` settings). Voice names autocomplete from the server.
+
 ## 1.2.0
 
 - Prompt suggestions on every grid, not only the first `/imagine` grid:

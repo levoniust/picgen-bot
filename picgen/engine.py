@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import images, llm, workflows
+from . import images, llm, speech, workflows
 from .comfy import Comfy, ComfyError
 
 log = logging.getLogger("picgen")
@@ -173,6 +173,25 @@ class Engine:
         if not s["llm"].get("enabled") or not s["llm"].get("suggest", True):
             return []
         return await llm.suggest(s, prompt, user, edit=edit)
+
+    async def say(self, text, voice=""):
+        """Text to speech for /say: (audio bytes, extension). Not queued: the voice server takes turns with ComfyUI itself."""
+        sp = self.s["speech"]
+        if not sp.get("enabled"):
+            raise UserError("Speech isn't set up on this bot (speech.enabled in settings.json).")
+        text = " ".join(text.split())
+        if not text:
+            raise UserError("Nothing to say.")
+        if len(text) > int(sp["max_chars"]):
+            raise UserError(f"That's too long to say (max {sp['max_chars']} characters).")
+        try:
+            return await speech.speak(sp, text, voice.strip())
+        except RuntimeError as ex:
+            raise UserError(f"Couldn't make the voice clip: {ex}.") from None
+
+    async def voice_names(self):
+        sp = self.s["speech"]
+        return await speech.voices(sp) if sp.get("enabled") else []
 
     def save_suggestions(self, job, suggestions):
         job.suggestions = list(suggestions)

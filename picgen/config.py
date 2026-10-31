@@ -120,6 +120,17 @@ DEFAULTS = {
         "suggest_system_prompt": SUGGEST_SYSTEM_PROMPT,
         "suggest_edit_system_prompt": SUGGEST_EDIT_SYSTEM_PROMPT,
     },
+    "speech": {
+        "enabled": False,
+        "url": "http://127.0.0.1:8100/v1/audio/speech",
+        "voice": "",
+        "voices": [],
+        "model": "",
+        "api_key": "",
+        "format": "mp3",
+        "max_chars": 1000,
+        "timeout_seconds": 300,
+    },
     "allowed_role_ids": [],
     "job_days": 30,
     "max_queue": 0,
@@ -158,6 +169,10 @@ def validate(s):
         raise ValueError("max_queue must be 0 (no limit) or more")
     if int(s["llm"]["max_tokens"]) < 256:
         raise ValueError("llm.max_tokens must be 256 or more")
+    if not 1 <= int(s["speech"]["max_chars"]) <= 4000:
+        raise ValueError("speech.max_chars must be 1-4000")
+    if s["speech"]["format"] not in ("mp3", "wav", "opus", "flac"):
+        raise ValueError("speech.format must be mp3, wav, opus or flac")
 
 
 class Settings:

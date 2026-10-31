@@ -255,3 +255,73 @@ def test_prompt_suggestions(tmp_path):
         asyncio.run(run())
     finally:
         llmmod.chat = real
+
+
+def test_say(tmp_path):
+    """/say: off by default, then a voice clip from a fake OpenAI-style speech server; errors are shown plainly."""
+    from aiohttp import web
+
+    seen = []
+
+    async def speech_handler(request):
+        body = await request.json()
+        seen.append(body)
+        if body["input"] == "fail please":
+            return web.Response(status=500, text="boom")
+        return web.Response(body=b"ID3" + b"\0" * 500, content_type="audio/mpeg")
+
+    async def voices_handler(request):
+        return web.json_response({"voices": [{"id": "Deep", "name": "Deep"}, {"id": "aria", "name": "aria"}]})
+
+    async def run():
+        app = web.Application()
+        app.router.add_post("/v1/audio/speech", speech_handler)
+        app.router.add_get("/v1/audio/voices", voices_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        try:
+            bot, engine = make_bot(tmp_path)
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "hello", ""))
+            assert "isn't set up" in inter.final["content"]
+
+            (tmp_path / "settings.json").write_text(json.dumps({"speech": {"enabled": True, "url": f"http://127.0.0.1:{port}/v1/audio/speech", "voice": "Deep"}}))
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "  Dinner   is ready! ", ""))
+            final = inter.final
+            assert final["attachments"][0].filename == "say.mp3"
+            assert final["content"] == "🔊 **Tester**: Dinner is ready!"
+            assert seen[-1] == {"input": "Dinner is ready!", "response_format": "mp3", "voice": "Deep"}
+
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "Hi there", "aria"))
+            assert seen[-1]["voice"] == "aria" and "(aria)" in inter.final["content"]
+
+            assert await engine.voice_names() == ["Deep", "aria"]
+
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "fail please", ""))
+            assert "HTTP 500" in inter.final["content"] and "attachments" in inter.final and inter.final["attachments"] == []
+
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "x" * 1001, ""))
+            assert "too long" in inter.final["content"]
+        finally:
+            await runner.cleanup()
+
+    asyncio.run(run())
+
+
+def test_say_server_down(tmp_path):
+    async def run():
+        (tmp_path / "settings.json").write_text(json.dumps({"speech": {"enabled": True, "url": "http://127.0.0.1:9/v1/audio/speech"}}))
+        bot, engine = make_bot(tmp_path)
+        inter = FakeInteraction()
+        await bot.guarded(inter, bot.do_say(inter, "hello", ""))
+        assert "not reachable" in inter.final["content"]
+        assert await engine.voice_names() == []
+
+    asyncio.run(run())

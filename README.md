@@ -24,6 +24,7 @@ An optional LLM (any OpenAI-compatible chat API, e.g. llama.cpp, Ollama, LM Stud
 | **⬆️ 2x / ⬆️ 4K** | AI upscale (4K = 3840 px on the long side), e.g. for a desktop background |
 | `/edit image prompt [raw]` | upload a picture and say what to change: 4 versions |
 | `/upscale image [size]` | upscale your own picture |
+| `/say text [voice]` | read text aloud: the bot posts a voice clip (needs a voice server, see `speech.*` below) |
 | `/help` | short help |
 
 Works in server channels, in DMs with the bot, and as a **user install** (in any DM/group chat). Requests run one at a time
@@ -118,6 +119,10 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `llm.rewrite_edits` | true | light spelling/clarity touch-up of edit instructions |
 | `llm.suggest` | true | ask the helper for 4 prompt changes (lighting, composition, two free) shown as buttons under every grid; after an edit they are other edits of the same picture |
 | `llm.imagine_system_prompt`, `llm.edit_system_prompt`, `llm.suggest_system_prompt`, `llm.suggest_edit_system_prompt` | built in | the helper's instructions |
+| `speech.enabled`, `speech.url` | off, `http://127.0.0.1:8100/v1/audio/speech` | `/say`: any OpenAI-compatible text-to-speech server (`/v1/audio/speech`) |
+| `speech.voice`, `speech.voices` | "", `[]` | default voice; voice names for autocomplete (empty = ask the server's `/v1/audio/voices`) |
+| `speech.model`, `speech.api_key`, `speech.format` | "", "", mp3 | sent to the server; format mp3, wav, opus or flac |
+| `speech.max_chars`, `speech.timeout_seconds` | 1000, 300 | longest text for `/say`; how long to wait for the clip |
 | `allowed_role_ids` | `[]` | Discord role IDs allowed to use the bot in servers (empty = everyone) |
 | `job_days` | 30 | how long buttons keep working |
 | `max_queue` | 0 | refuse new requests while this many are waiting (0 = no limit) |
