@@ -303,6 +303,18 @@ def test_say(tmp_path):
             assert await engine.voice_names() == ["Deep", "aria"]
 
             inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "Did you hear that?", "", " Scared "))
+            assert seen[-1]["input"] == "[scared] Did you hear that?" and "(scared)" in inter.final["content"]
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "Yes", "aria", "excited"))
+            assert seen[-1]["input"] == "[excited] Yes" and "(aria, excited)" in inter.final["content"]
+            n = len(seen)
+            inter = FakeInteraction()
+            await bot.guarded(inter, bot.do_say(inter, "Hi", "", "<|emotion:x|>"))
+            assert "plain words" in inter.final["content"] and len(seen) == n
+            assert "frustrated" in engine.mood_names()
+
+            inter = FakeInteraction()
             await bot.guarded(inter, bot.do_say(inter, "fail please", ""))
             assert "HTTP 500" in inter.final["content"] and "attachments" in inter.final and inter.final["attachments"] == []
 

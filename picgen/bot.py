@@ -22,7 +22,7 @@ HELP = """**PIC_GEN** makes pictures with AI (Qwen Image 2.1).
 - Under a full-size picture: **Vary (Subtle)** / **Vary (Strong)** · **✏️ Edit** = type what to change → 4 edited versions · **⬆️ 2x** / **⬆️ 4K** = bigger copy (4K = 3840 px, e.g. for a desktop background).
 - `/edit image: prompt:` upload a picture and say what to change ("make it night", "add a red scarf").
 - `/upscale image: size:` make your own picture bigger.
-- `/say text: voice:` read text aloud as a voice clip (if the bot owner set up a voice server).
+- `/say text: voice: mood:` read text aloud as a voice clip (if the bot owner set up a voice server). Mood = how to say it (scared, excited...); `[laughs]` or `[whisper]` inside the text change it mid-way.
 One job runs at a time, so you may wait in line. A grid takes about 50 s, an edit grid about 70 s, an upscale about 40 s."""
 
 ASPECT_CHOICES = [app_commands.Choice(name=n, value=v) for n, v in [
@@ -153,16 +153,21 @@ class PicGenBot(discord.Client):
             await self.guarded(inter, self.do_upscale_upload(inter, image, 2 if size and size.value == "x2" else 4))
 
         @tree.command(name="say", description="Read text aloud: posts a voice clip")
-        @app_commands.describe(text="What to say. Emotion tags like <|emotion:elation|> work on Higgs voices.", voice="Voice (default: the bot's)")
+        @app_commands.describe(text="What to say. Mood words in brackets work mid-text: [scared] Did you hear that? [laughs]",
+                               voice="Voice (default: the bot's)", mood="How to say it: scared, excited, frustrated...")
         @app_commands.allowed_installs(**INSTALLS)
         @app_commands.allowed_contexts(**CONTEXTS)
-        async def say(inter: discord.Interaction, text: app_commands.Range[str, 1, 2000], voice: str = ""):
-            await self.guarded(inter, self.do_say(inter, text, voice))
+        async def say(inter: discord.Interaction, text: app_commands.Range[str, 1, 2000], voice: str = "", mood: str = ""):
+            await self.guarded(inter, self.do_say(inter, text, voice, mood))
 
         @say.autocomplete("voice")
         async def say_voice(inter: discord.Interaction, current: str):
             names = await self.engine.voice_names()
             return [app_commands.Choice(name=n, value=n) for n in names if current.lower() in n.lower()][:25]
+
+        @say.autocomplete("mood")
+        async def say_mood(inter: discord.Interaction, current: str):
+            return [app_commands.Choice(name=n, value=n) for n in self.engine.mood_names() if current.lower() in n.lower()][:25]
 
         @tree.command(name="help", description="How to use PIC_GEN")
         @app_commands.allowed_installs(**INSTALLS)
@@ -324,10 +329,12 @@ class PicGenBot(discord.Client):
 
     # ---------- buttons ----------
 
-    async def do_say(self, inter, text, voice):
+    async def do_say(self, inter, text, voice, mood=""):
         await self.status(inter, "🔊 Recording...")
-        data, ext = await self.engine.say(text, voice)
-        who = f" ({voice.strip()})" if voice.strip() else ""
+        mood = " ".join(mood.split()).lower()
+        data, ext = await self.engine.say(text, voice, mood)
+        who = ", ".join(x.strip() for x in (voice, mood) if x.strip())
+        who = f" ({who})" if who else ""
         await self.post(inter, f"🔊 **{name_of(inter)}**{who}: {clip(' '.join(text.split()), 300)}", data, f"say.{ext}")
 
     async def on_button(self, inter, action, job_id, index):

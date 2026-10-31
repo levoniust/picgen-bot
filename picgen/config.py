@@ -130,6 +130,10 @@ DEFAULTS = {
         "format": "mp3",
         "max_chars": 1000,
         "timeout_seconds": 300,
+        "moods": ["scared", "excited", "happy", "frustrated", "angry", "sad", "surprised", "loving", "amused",
+                  "amazed", "confused", "thoughtful", "calm", "determined", "disgusted", "helpless", "proud",
+                  "relieved", "embarrassed", "whisper", "shout", "sing"],
+        "mood_format": "[{mood}] ",
     },
     "allowed_role_ids": [],
     "job_days": 30,
@@ -173,6 +177,8 @@ def validate(s):
         raise ValueError("speech.max_chars must be 1-4000")
     if s["speech"]["format"] not in ("mp3", "wav", "opus", "flac"):
         raise ValueError("speech.format must be mp3, wav, opus or flac")
+    if "{mood}" not in s["speech"]["mood_format"]:
+        raise ValueError("speech.mood_format must contain {mood}")
 
 
 class Settings:

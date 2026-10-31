@@ -174,7 +174,7 @@ class Engine:
             return []
         return await llm.suggest(s, prompt, user, edit=edit)
 
-    async def say(self, text, voice=""):
+    async def say(self, text, voice="", mood=""):
         """Text to speech for /say: (audio bytes, extension). Not queued: the voice server takes turns with ComfyUI itself."""
         sp = self.s["speech"]
         if not sp.get("enabled"):
@@ -184,10 +184,19 @@ class Engine:
             raise UserError("Nothing to say.")
         if len(text) > int(sp["max_chars"]):
             raise UserError(f"That's too long to say (max {sp['max_chars']} characters).")
+        mood = " ".join(mood.split()).lower()
+        if mood:
+            if not re.fullmatch(r"[a-z][a-z -]{0,23}", mood):
+                raise UserError("A mood is one or two plain words, like scared or excited.")
+            text = sp["mood_format"].replace("{mood}", mood) + text
         try:
             return await speech.speak(sp, text, voice.strip())
         except RuntimeError as ex:
             raise UserError(f"Couldn't make the voice clip: {ex}.") from None
+
+    def mood_names(self):
+        sp = self.s["speech"]
+        return list(sp["moods"]) if sp.get("enabled") else []
 
     async def voice_names(self):
         sp = self.s["speech"]

@@ -24,7 +24,7 @@ An optional LLM (any OpenAI-compatible chat API, e.g. llama.cpp, Ollama, LM Stud
 | **⬆️ 2x / ⬆️ 4K** | AI upscale (4K = 3840 px on the long side), e.g. for a desktop background |
 | `/edit image prompt [raw]` | upload a picture and say what to change: 4 versions |
 | `/upscale image [size]` | upscale your own picture |
-| `/say text [voice]` | read text aloud: the bot posts a voice clip (needs a voice server, see `speech.*` below) |
+| `/say text [voice] [mood]` | read text aloud: the bot posts a voice clip (needs a voice server, see `speech.*` below). `mood` (scared, excited, frustrated...) says it that way |
 | `/help` | short help |
 
 Works in server channels, in DMs with the bot, and as a **user install** (in any DM/group chat). Requests run one at a time
@@ -123,6 +123,7 @@ pictures plus `results.txt` to the folder. Unit tests: `pip install pytest && py
 | `speech.voice`, `speech.voices` | "", `[]` | default voice; voice names for autocomplete (empty = ask the server's `/v1/audio/voices`) |
 | `speech.model`, `speech.api_key`, `speech.format` | "", "", mp3 | sent to the server; format mp3, wav, opus or flac |
 | `speech.max_chars`, `speech.timeout_seconds` | 1000, 300 | longest text for `/say`; how long to wait for the clip |
+| `speech.moods`, `speech.mood_format` | 22 moods (scared, excited, frustrated...), `"[{mood}] "` | `/say mood:` suggestions (users may type others); the mood goes in front of the text in this format. `[scared]`-style cues work on servers that read them (e.g. ElevenLabs v3 audio tags); change the format for others, e.g. `"<|emotion:{mood}|>"` |
 | `allowed_role_ids` | `[]` | Discord role IDs allowed to use the bot in servers (empty = everyone) |
 | `job_days` | 30 | how long buttons keep working |
 | `max_queue` | 0 | refuse new requests while this many are waiting (0 = no limit) |

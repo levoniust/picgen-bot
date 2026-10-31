@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0
+
+- `/say` gets a `mood` option (scared, excited, frustrated, whisper, shout...): the voice says it that way. New settings `speech.moods` (the suggestions) and `speech.mood_format` (how the mood is sent, default `[mood] ` in front of the text, for voice servers that read bracket cues).
+
 ## 1.3.0
 
 - New `/say text [voice]`: reads text aloud and posts the voice clip. Works with any OpenAI-compatible text-to-speech server; off until you set `speech.enabled` and `speech.url` (new `speech.*` settings). Voice names autocomplete from the server.
